@@ -15,3 +15,4 @@ Schließlich werden verschiedenen Tierarten und Rasterdatenquellen verwendet, um
 Wichtige Punkte: Die Projektionen der einzelnen Daten automatisch erkennen und anpassen. Nicht nur dass sie gleich sind, sondern dass sie im Verbreitungsgebiet eine flächentreue Projektion ergeben (winkeltreue ist zu vernachlässigen)
                  Die Untersuchungsgebiete könnten per Hand mit getPoly(?) ausgewählt werden.
                   
+http://www.r-bloggers.com/session-1-gridding-data-for-multi-scale-macroecological-analyses/
