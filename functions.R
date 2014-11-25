@@ -1,14 +1,15 @@
 ##functions
-#download files
-getWorldClim <- function(par, res, path){ #par: parameter vector, res: resolution (2.5, 5, 10), path: path character string)
+#-----------------------------------------------------
+#download climate parameters global and reproject them
+getWorldClim <- function(par, res, path)
   parlist <-list()
   for (i in 1:length(par)) {
     parlist[[par[i]]] <- getData('worldclim', path=path, download = T, var=par[i], res=res)
   }
   print(parlist)
 }
-
-### open species data website at IUCN
+#-----------------------------------------------------
+#open species data website at IUCN
 IUCNdata <- function(name){
   library(RCurl)
   x <- getURL("https://raw.githubusercontent.com/achumani/Verbreitungsdaten-in-R/master/IUCN_Species_ID.csv")

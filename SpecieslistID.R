@@ -3,10 +3,8 @@ setwd(path)
 require(raster)
 require(rgdal)
 require(foreign)
-
+require(mapdata)
 #####################################
-
-
 ##Download and unzip IUCN species shapefiles 
 #mammals
 download.file("http://goo.gl/aCwMuk", paste(path, "Mammals.zip", sep=""))
@@ -36,13 +34,3 @@ MarineFish2 <- read.dbf(paste(path, "MarineFish/MARINEFISH_PART2.dbf", sep=""))
 Species_ID <- unique(rbind(mammals[1:2], amphibians[1:2], reptiles[1:2], MarineFish1[2:3], MarineFish2[2:3]))
 
 write.csv(Species_ID, file = paste(path, "IUCN_Species_ID.csv", sep=""))
-
-#open IUCN species webpage for spatial data download
-IUCNdata <- function(name){
-  library(RCurl)
-  x <- getURL("https://raw.githubusercontent.com/achumani/Verbreitungsdaten-in-R/master/IUCN_Species_ID.csv")
-  SpeciesID <- read.csv(text = x, header=T)
-  ID <- as.character(SpeciesID$id_no[which(SpeciesID$binomial == name)])
-  browseURL(paste("http://maps.iucnredlist.org/map.html?id=", ID, sep=""))
-}
-
