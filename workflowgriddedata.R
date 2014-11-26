@@ -67,6 +67,7 @@ ID <- IUCNdata(species) #download species file as is into rawdata
 #DOWNLOAD WorldClim DATA INTO RAWDATA FILE
 
 par <- parameters
+
 if(target_resolution < 20000){
   res <- 5
 }else{
@@ -85,6 +86,7 @@ worldborders <- readOGR(dsn=paste(path.raw, "WorldBorders", sep="/"), layer="TM_
 ####shapefile laden###
 #######################
 species.shp <- readOGR(dsn=paste(paste(path.raw, "species_", sep="/"), ID, sep=""),layer=paste("species_", ID, sep=""))
+
 plot(species.shp, col="brown") # from iucnredlist.org transformed to suitable equal area projection
 plot(worldborders, add=T)
 aoi <- getpoly(quiet = F) # draw the extent of your area of interest
@@ -132,11 +134,13 @@ for (i in 1:length(rasterlist$raster_files)){
   name <- paste("processed_", names[[i]], sep="")
   writeRaster(wc_processed[[i]], filename=paste(path.processed, name, sep="/"), format="EHdr", overwrite=T) # format can be 'GTif', or others, check documentation at http://www.inside-r.org/packages/cran/raster/docs/writeRaster
 }
-r
-test <- raster(paste(path.processed, "processed_tmean9.bil", sep="/"))
 
+test <- raster(paste(path.processed, "processed_tmean9.bil", sep="/"))
+plot(test, add=T)
 #make data frame with climate attributes, coordinates and species presence/absence
 wcstack <- stack(wc_processed)
 df <- as.data.frame(rasterToPoints(wcstack))
 colnames(df)[1:2] <- c("EOFORIGIN", "NOFORIGIN")
-df <- cbind(ID=ID, CELLCODE = paste0(target_resolution/1000,"KM", round(df$EOFORIGIN/1000),"E", round(df$NOFORIGIN/1000),"N"), df)
+df <- cbind(ID= ID, CELLCODE = paste0(target_resolution/1000,"KM","E", round(df$EOFORIGIN/1000), "N", round(df$NOFORIGIN/1000)),df)
+str(df)
+summary(df)
