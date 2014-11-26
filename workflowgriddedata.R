@@ -17,8 +17,8 @@ library(foreign)
 setwd("/Users/Simon/Studium/MSC/Best Practice in R/DistributionProject/")
 species <- "Martes foina"
 parameters <- c("alt")
-target_resolution <- 50000
-crs <- "+init=epsg:32631"
+target_resolution <- 15000
+crs <- "+init=epsg:3035"
 
 #----------------------------------
 #LOAD WORKFLOW FUNCTIONS
@@ -51,13 +51,13 @@ IUCNdata <- function(name){
 
 # #----------------------------------
 # #SET PROJECT FILES DIRECTORY
-# unlink(path.grid_data, recursive=T)
+unlink(path.grid_data, recursive=T)
 path.grid_data <- paste(getwd(), "grid_data", sep="/")
 path.raw <- paste(path.grid_data, "raw", sep="/")
 path.processed <- paste(path.grid_data, "processed", sep="/")
-# dir.create(path.grid_data)
-# dir.create(path.raw)
-# dir.create(path.processed)
+dir.create(path.grid_data)
+dir.create(path.raw)
+dir.create(path.processed)
 
 #----------------------------------
 #IUCN-DATA LINK
@@ -77,9 +77,9 @@ getWorldClim(par, res)
 
 #----------------------------------
 #WORLD BORDERS
-# download.file("http://thematicmapping.org/downloads/TM_WORLD_BORDERS-0.3.zip", paste(path.raw, "WorldBorders.zip", sep="/"))
-# unzip(paste(path.raw, "WorldBorders.zip", sep="/"), exdir = paste(path.raw, "WorldBorders", sep="/"), overwrite=T)
-# file.remove(paste(path.raw, "WorldBorders.zip", sep="/"))
+download.file("http://thematicmapping.org/downloads/TM_WORLD_BORDERS-0.3.zip", paste(path.raw, "WorldBorders.zip", sep="/"))
+unzip(paste(path.raw, "WorldBorders.zip", sep="/"), exdir = paste(path.raw, "WorldBorders", sep="/"), overwrite=T)
+file.remove(paste(path.raw, "WorldBorders.zip", sep="/"))
 worldborders <- readOGR(dsn=paste(path.raw, "WorldBorders", sep="/"), layer="TM_WORLD_BORDERS-0.3")
 #######################
 ####shapefile laden###
@@ -105,9 +105,7 @@ dimy <- (round(length(ext@ymin:ext@ymax)/target_resolution))
 aoi_rr_utm <- raster(ext, ncols=dimx,nrows=dimy,crs=crs)
 vals <- 1:ncell(aoi_rr_utm)
 aoi_rr_utm <- setValues(aoi_rr_utm, vals)
-plot(species_aoi_edge_raster)
-plot(species_aoi_filling_raster, add=T)
-plot(species_aoi_rr_utm)
+
 # use aoi_rr to clip species shapefile and rasterize it
 # to cover full extent of species, the polygons borders need to be rasterized seperatly. Otherwise only what is 100% inside the polygon will be rasterized. But it is not 100% perfect. possible improvements!!
 species_aoi_shp <- crop(species.shp, aoi_ext)
@@ -117,19 +115,20 @@ species_aoi_edge <- as(species_aoi_shp_utm, "SpatialLinesDataFrame")
 species_aoi_edge_raster <- rasterize(species_aoi_edge, aoi_rr_utm)
 species_aoi_filling_raster <- rasterize(species_aoi_shp_utm, aoi_rr_utm)
 species_aoi_rr_utm <- merge(species_aoi_edge_raster, species_aoi_filling_raster)
-plot(species_aoi_rr_utm, add=T)
-plot(species_aoi_shp_utm, add=T)
-plot(aoi_rr_utm, add=T)
+plot(species_aoi_rr_utm)
+plot(extent(aoi_rr_utm), add=T)
+plot(aoi_ext, add=T)
 rasterlist <- list.raster.files(paste(paste(path.raw,"wc", sep="/"),res, sep=""), pattern= "bil$") # this function will check the folder and subfolders at the paths location for ALL rasters
 names <- list.files(paste(paste(path.raw, "wc",sep="/"), res, sep=""), pattern= "bil$") #stores rasternames in same order as list.raster.files()
 r <- list() # empty list just to get the loop going
 for (i in 1:length(rasterlist$raster_files)){
   r[[i]] <- raster(rasterlist$raster_files[[i]], sep="") #loading longlat rasters
+  rc <- crop(r[[i]], )
   rr <- spatial_sync_raster(r[[i]], aoi_rr_utm, method="bilinear") #use aoi_rr_utm as input for spatial sync
   name <- paste("processed_", names[[i]], sep="")
   writeRaster(rr, filename=paste(path.processed, name, sep="/"), format="EHdr", overwrite=T) # format can be 'GTif', or others, check documentation at http://www.inside-r.org/packages/cran/raster/docs/writeRaster
 }
 
-test <- raster(paste(path.processed, "processed_tmin1.bil", sep="/"))
+test <- raster(paste(path.processed, "processed_alt.bil", sep="/"))
 
 plot(test, add=T)
