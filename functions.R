@@ -17,7 +17,15 @@ IUCNdata <- function(name){
   ID <- as.character(SpeciesID$id_no[which(SpeciesID$binomial == name)])
   browseURL(paste("http://maps.iucnredlist.org/map.html?id=", ID, sep=""))
 }
+IUCNdata(species)
 
-
-
+# #----------------------------------
+# #DOWNLOAD GLC DATA AND STORE INTO RAWDATA DIRECTORY
+# if (file.exists(paste(path.raw, "GLCdom", sep="/"))){
+#   stop("File already exists")
+# }else{
+#   download.file("http://www.fao.org/geonetwork/srv/en/resources.get?id=47948&fname=GlcShare_v10_Dominant.zip&access=private", paste(path.raw, "GLCdom.zip", sep="/"))
+#   unzip(paste(path.raw, "GLCdom.zip", sep="/"), exdir = paste(path.raw, "GLCdom", sep="/"))
+#   file.remove(paste(path.raw, "GLCdom.zip", sep="/"))
+# }
 
