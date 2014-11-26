@@ -1,0 +1,87 @@
+\documentclass[11pt, a4paper]{article} %or article has only section and below, book and report also have chapter: http://texblog.org/2007/07/09/documentclassbook-report-article-or-letter/
+
+\usepackage[utf8]{inputenc}  % use utf8 encoding of symbols such as umlaute for maximal compatibility across platforms
+
+\usepackage{caption}				% provides commands for handling caption sizes etc.
+%\usepackage[a4paper, left=25mm, right=20mm, top=25mm, bottom=20mm]{geometry}		 % to easily change margin widths: https://www.sharelatex.com/learn/Page_size_and_margins
+
+\usepackage{etoolbox}    % for conditional evaluations!
+\usepackage[bottom]{footmisc}  % I love footnotes! And they should be down at the bottom of the page!
+\usepackage{graphicx}        % when using figures and alike
+\usepackage[hidelinks]{hyperref}		% for hyperreferences (links within the document: references, figures, tables, citations)
+
+\usepackage{euler}     % a math font, only for equations and alike; call BEFORE changing the main font; alternatives: mathptmx, fourier, 
+\usepackage{charter} % for a different font; you can also try: cantarell, charter, libertine, gentium, bera, ... http://tex.stackexchange.com/questions/59403/what-font-packages-are-installed-in-tex-live
+
+%------------------------------------------------------------------------------------------------------
+%------- text size settings --------------
+\setlength{\textwidth}{16cm}% 
+\setlength{\textheight}{25cm} %23 
+%(these values were used to fill the page more fully and thus reduce the number of pages!)
+\setlength{\topmargin}{-1.5cm} %0
+\setlength{\footskip}{1cm} %
+%\setlength{\hoffset}{0cm} %
+\setlength{\oddsidemargin}{1cm}%
+\setlength{\evensidemargin}{-.5cm}%
+\setlength{\parskip}{0cm} % Abstand zwischen Absätzen
+% ----------------------------------------------------------------
+\renewcommand{\textfraction}{0.1} % allows more space to graphics in float
+\renewcommand{\topfraction}{0.85}
+%\renewcommand{\bottomfraction}{0.65}
+\renewcommand{\floatpagefraction}{0.70}
+
+
+\frenchspacing %http://texwelt.de/wissen/fragen/1154/was-ist-french-spacing-was-macht-frenchspacing
+%------------------------------------------------------------------------------------------------------
+%------------------------------------------------------------------------------------------------------
+
+\begin{document}
+%\SweaveOpts{concordance=TRUE}
+%%%%%%%%%%%%% this bit is new to Knitr: %%%%%%%%%%%%%%%%%%%%%
+<<setup, include=FALSE, cache=FALSE, echo=F>>=
+library(knitr)
+# set global chunk options
+opts_chunk$set(fig.path='', fig.align='center', fig.show='hold')
+options(replace.assign=TRUE, width=90)
+@
+
+
+\title{This is an example document to change at your whim.}
+
+\author{I\thanks{Here, University of Freiburg} \and me\thanks{There, University of Freiburg} \and myself\thanks{Lost, somewhere midair}}
+% for more control, multiple affiliations, line breaks and alike, use the authblk package!!
+
+\date{\today} % !!use package isodate for more control of date formatting!!
+
+\maketitle
+
+%------------------------------------------------------------------------------------------------------
+%------------------------------------------------------------------------------------------------------
+
+\abstract{This is a very simple \LaTeX~template to get started.}
+
+\tableofcontents
+
+\section{Introduction}%------------------------------------------------------------------------------------------------------
+
+Our projects goal was to facillitate the use of R as a GIS-Software. Since GIS-Software is often costly, the free statistical software R becomes a worthwhile alternative. To help students and reasearcher explore R as an alternative to GIS, many comon GIS functions need to be implemented in a comfortable way in R.\newline
+In this document, we explain how our Rscript can help the researcher prepare his data for species distribution modeling (SDM). Data used in SDM is often presented as a spatial grid (raster-data) with every grid cell containing information about the presence of the species and  environmental parametrs like altitude and slope, precipitation and water balance or temperature and wind speed records. Getting all this information into on grid is what is achived by running our Rscript.
+
+\section{Methods}%------------------------------------------------------------------------------------------------------
+
+The first step is to aquire all the necessary data for the analysis. This requieres the user to input some basic parameters like the species name (in latin), the desired cell size of the final grid (in meters) and the epsg code for the coordinate refernce system best suitable for the extent of the study site (equal area projection). \newline
+Spatial data for all known mamalian, amphibian, reptilian and marine fish species is accessible at \url{www.iucnredlist.org}. A function was written that redirects the user to the downloadpage of the species at the website of the IUCN. Unfortunately a user login is requiered, otherwise it would have been possible to directly download the spatial data and load it into R. Rasterdata for climate records is available at \url{www.worldclim.org} without a user login, allowing us to directly download and load the data to our Rworkspace.\newline
+Once all the data is available to R, the species is plotted onto a 2D plane of the entire world (WGS84 Lat/Lon; EPSG:4326) together with a country borders shapefile downloaded from \url{www.thematicmapping.org}. The user is then prompted to specify the area of interest (aoi) on the current graphics device before the \textit{aoi} gets processed into an FormalClass SpatialPolygon. The extent of the \textit{aoi} gets extracted using the function gEnvelope, creating a rectangular shapefile around all the corners of the aoi. This shapefile is being reprojected onto the user specified coordinate system. Since the user defined CRS is metric, the \texttt{extent()}-function allows us to extract the dimensions of the \textit{aoi} and calculate the nescecary raster grid for the study (dividing the \textit{aoi's} extent by the desired cell size, e.g. 50km).\newline
+The species distribution shapefile needs to be croped to the extent of the aoi before processing it into a raster. The unprojected \texttt{gEnvelope()} output is used for this task and the resulting cropped species-shapefile projected to our target CRS. Rasterizing this cropped and reprojected specias shapefile needs to be done in two steps, rasterizing the polygons and the polygons borders seperatly. This is due to the fact that rasterising polygons only yields the values of those cells whose centre is covered by the polygon. Simply rasterizing the polygons would leave areas, e.g. bordering coastline, unrasterized even though the species are present all the way up to the shore. So the 'Formal class SpatialPolygonsDataFrame' need to be transformed to 'Formal class SpatialLinesDataFrames' so the resulting polylines features can be rasterized aswell. Rasterizing polylines yields cellvalues for all the cells a polyline touches. Both rasters, the rasterized polygons and the rasterized polylines, can then be merged to form the complete rasterized extent of the species inside our area of interest.\\
+
+
+
+\section{Results} %------------------------------------------------------------------------------------------------------
+
+
+\section{Diskussion}%------------------------------------------------------------------------------------------------------
+
+\section{Still to do}%------------------------------------------------------------------------------------------------------
+aggregate all cell values to a dataframe like we used them in Umweltstatistik (SoSe 2014). Remove all cells (rows in the dataframe) that er neither populted by the species nor contain any information from the other rasters.
+
+\end{document}
