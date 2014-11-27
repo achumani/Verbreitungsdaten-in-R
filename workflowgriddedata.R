@@ -41,19 +41,19 @@ library(RCurl)
 #---------------------------------
 #SET CUSTOM PARAMETERS
 
-setwd("/Users/Simon/Studium/MSC/Best Practice in R/DistributionProject/")
+setwd("/Users/Simon/Studium/MSC/Best Practice in R/DistributionProject/test_project")
 species <- c("Crocodylus siamensis") 
 parameters <- c("alt", "tmin", "tmax")
 target_resolution <- 50000
 crs <- "+init=epsg:32648" #
-deletefiles <- T #(delete proccessed and downloaded files after running workflow, T or F)
+deletefiles <- F #(delete proccessed and downloaded files after running workflow, T or F)
 #----------------------------------
 #LOAD WORKFLOW FUNCTIONS
 #Download WorldClim
 getWorldClim <- function(par, res){
   parlist <-list()
   for (i in 1:length(par)) {
-    getData('worldclim', path=path.raw, download = T, var=par[i], res=res)
+    getData('worldclim', path=path.temp_data, download = T, var=par[i], res=res)
   }
 }
 
@@ -87,11 +87,16 @@ mround <- function(number, multiple) {
 # common parameters included are derived from the WorldClim database, the global landcover data provided by the UNFAO GeoNetwork and a species distribution dataset from the IUCN redlist.
 
 # #----------------------------------
-# #SET PROJECT FILES DIRECTORY
-path.temp_data <- paste(getwd(), "temp_data", sep="/")
-unlink(path.temp_data, recursive=T)
-path.raw <- paste(path.temp_data, "raw", sep="/")
-dir.create(path.temp_data)
+# #SET TEMPORARY FOLDER
+if (file.exists(paste(getwd(), "temp_data", sep="/"))){
+  path.temp_data <- paste(getwd(), "temp_data", sep="/")
+  unlink(paste(getwd(), "temp_data", sep="/"), recursive=T)
+  dir.create(path.temp_data)
+  }else{
+  path.temp_data <- paste(getwd(), "temp_data", sep="/")
+  dir.create(path.temp_data)
+}
+
 
 #----------------------------------
 #IUCN-DATA LINK
@@ -102,41 +107,37 @@ ID <- as.character(SpeciesID$id_no[which(SpeciesID$binomial == species)])
 
 #promt download link
 if (file.exists(paste(getwd(), paste("species_", ID, sep=""), sep="/"))){
-  message("File does not have to be downloaded, as it already exists in your working directory")
+  message("Download not necessary. The file already exists in your working directory.")
 }else{
-  IUCNdata(species) #download species file as is into rawdata
+  IUCNdata(species)
+  message("Please download the species distribution file from the IUCN-website that just popped up and move the downloaded file as is into your working directory.")
 }
 
 #----------------------------------
-#DOWNLOAD WorldClim DATA INTO RAWDATA FILE
-
-if (file.exists(paste(path.raw, paste("wc", res, sep=""), sep="/"))){
-  message("Files already exist, download not necessary")
+#DOWNLOAD WorldClim DATA INTO temporary folder
+par <- parameters
+if(target_resolution < 20000){
+  res <- 5
 }else{
-  par <- parameters
-  if(target_resolution < 20000){
-    res <- 5
-  }else{
-    res <- 10
-  }
-  getWorldClim(par, res)
+  res <- 10
 }
+getWorldClim(par, res)
 
 #----------------------------------
 # DOWNLOAD WORLD BORDERS
-if (file.exists(paste(path.raw, "WorldBorders", sep="/"))){
-  message("Files already exist, download not necessary")
-}else{
-  download.file("http://thematicmapping.org/downloads/TM_WORLD_BORDERS-0.3.zip", paste(path.raw, "WorldBorders.zip", sep="/"))
-  unzip(paste(path.raw, "WorldBorders.zip", sep="/"), exdir = paste(path.raw, "WorldBorders", sep="/"), overwrite=T)
-  file.remove(paste(path.raw, "WorldBorders.zip", sep="/"))
-}
+download.file("http://thematicmapping.org/downloads/TM_WORLD_BORDERS-0.3.zip", paste(path.temp_data, "WorldBorders.zip", sep="/"))
+unzip(paste(path.temp_data, "WorldBorders.zip", sep="/"), exdir = paste(path.temp_data, "WorldBorders", sep="/"), overwrite=T)
+file.remove(paste(path.temp_data, "WorldBorders.zip", sep="/"))
 
-worldborders <- readOGR(dsn=paste(path.raw, "WorldBorders", sep="/"), layer="TM_WORLD_BORDERS-0.3")
+
+
 
 #######################
 #####RASTERIZATION#####
 #######################
+
+#Visualisation of species distribution extent
+worldborders <- readOGR(dsn=paste(path.temp_data, "WorldBorders", sep="/"), layer="TM_WORLD_BORDERS-0.3")
 species.shp <- readOGR(dsn=paste(paste(getwd(), "species_", sep="/"), ID, sep=""),layer=paste("species_", ID, sep=""))
 
 plot(species.shp, col="brown") # from iucnredlist.org transformed to suitable equal area projection
@@ -158,8 +159,6 @@ dimy <- (mround(length(ext@ymin:ext@ymax), target_resolution))/target_resolution
 
 # build a template raster for the spatial_sync_raster function
 aoi_rr_utm <- raster(ext, ncols=dimx,nrows=dimy,crs=crs)
-#vals <- 1:ncell(aoi_rr_utm)
-#aoi_rr_utm <- setValues(aoi_rr_utm, vals)
 
 # use aoi_rr to clip species shapefile and rasterize it
 # to cover full extent of species, the polygons borders need to be rasterized seperatly. Otherwise only what is 100% inside the polygon will be rasterized. But it is not 100% perfect. possible improvements!!
@@ -170,8 +169,8 @@ species_aoi_raster@data@values <- species_aoi_raster@data@values/100
 species_aoi_raster@data@names <- species
 #fitting downloaded worldclim data into raster#
 
-rasterlist <- list.raster.files(paste(paste(path.raw,"wc", sep="/"),res, sep=""), pattern= "bil$") # this function will check the folder and subfolders at the paths location for ALL rasters
-names <- list.files(paste(paste(path.raw, "wc",sep="/"), res, sep=""), pattern= "bil$") #stores rasternames in same order as list.raster.files()
+rasterlist <- list.raster.files(paste(paste(path.temp_data,"wc", sep="/"),res, sep=""), pattern= "bil$") # this function will check the folder and subfolders at the paths location for ALL rasters
+names <- list.files(paste(paste(path.temp_data, "wc",sep="/"), res, sep=""), pattern= "bil$") #stores rasternames in same order as list.raster.files()
 
 wc_processed <- list()
 # empty list to store processed rasters in RAM
@@ -194,10 +193,4 @@ colnames(data_sheet)[1:2] <- c("EOFORIGIN", "NOFORIGIN")
 data_sheet <- cbind(ID= ID, CELLCODE = paste0(target_resolution/1000,"KM","E", round(data_sheet$EOFORIGIN/1000), "N", round(data_sheet$NOFORIGIN/1000)),data_sheet)
 write.csv(data_sheet, paste0("species_", ID,"_", target_resolution/1000, "KM_data.csv"))
 
-if (deletefiles == T){
-  unlink(paste(getwd(), "grid_data", sep="/"))
-  message("folder structure deleted from working directory")
-}else{
-  message("folder structure kept in working directory")
-}
-
+unlink(paste(getwd(), "temp_data", sep="/"), recursive=T)
