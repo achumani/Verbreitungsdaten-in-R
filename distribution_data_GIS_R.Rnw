@@ -39,7 +39,8 @@
 %\SweaveOpts{concordance=TRUE}
 %%%%%%%%%%%%% this bit is new to Knitr: %%%%%%%%%%%%%%%%%%%%%
 <<setup, include=FALSE, cache=FALSE, echo=F>>=
-library(knitr)
+#library(knitr)
+render_listings()
 # set global chunk options
 opts_chunk$set(fig.path='', fig.align='center', fig.show='hold')
 options(replace.assign=TRUE, width=90)
@@ -57,8 +58,12 @@ options(replace.assign=TRUE, width=90)
 
 %------------------------------------------------------------------------------------------------------
 %------------------------------------------------------------------------------------------------------
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.82\textwidth]{bilder/deckblatt.png}
+\end{figure}
 
-\abstract{This report is done as a documentation for a Rscript we produced in the masters course ``Best practice for data analysis and R: writing and coding geographic and statistical analyses for theses and reports". The Rscript loads and processes species distribution shapefiles and environmentally relevant parameters as raster files, combines both file formats into one data frame representing equal area raster cells. The resulting data frames can be used for statistical analysis such as species distribution modelling. The aim is to automatize a relatively easy GIS task in such a way that users who are more interested in statistics and less in GIS are able to prepare their data set with minimal user input and without relying on conventional GIS software.}
+\abstract{This report is done as a documentation for an Rscript we produced in the masters course ``Best practice for data analysis and R: writing and coding geographic and statistical analyses for theses and reports". The Rscript loads and processes species distribution shapefiles and environmentally relevant parameters as raster files, combines both file formats into one data frame representing equal area raster cells. The resulting data frames can be used for statistical analysis such as species distribution modelling. The aim is to automatize a relatively easy GIS task in such a way that users who are more interested in statistics and less in GIS are able to prepare their data set with minimal user input and without relying on conventional GIS software. Excerpts from the Rscript are interlaced in the this report. The entire Rscript is found in the appendix.}
 
 \tableofcontents
 
@@ -70,11 +75,133 @@ In this document, we explain how our Rscript can help the researcher prepare his
 \section{Rscript documentation}%------------------------------------------------------------------------------------------------------
 
 The first step is to acquire all the necessary data for the analysis. This requires the user to input some basic parameters like the species name (in Latin), the desired cell size of the grid (in meters) and the epsg code for the coordinate reference system best suitable for the extent of the study site (equal area projection). \newline
-Spatial data for all known mammalian, amphibian, reptilian and marine fish species is accessible at \url{www.iucnredlist.org}. A function was written that redirects the user to the download page of the requested species at the website of the IUCN. Unfortunately a user login is required, otherwise it would have been possible to directly download the spatial data and load it into R. It is also possible to download all species distribution shapefiles in bulk (over 1 GB of data in shapefiles) from the website of the IUCN. Raster data for climate records is available at \url{www.worldclim.org} without a user login, allowing us to directly download and load the data to our Rworkspace. The same applies for landvocer data from  \url{www.###.com}. If either one of the data sets is already downloaded and stored inside the specified folders, the download-functions will notify the user that re-downloading them wont be necessary.\newline
-Once all the data is available to R, the species is plotted onto a 2D plane of the entire world (WGS84 Lat/Lon; EPSG:4326) together with every country's borders shapefile downloaded from \url{www.thematicmapping.org}. The user is then prompted to specify the area of interest (\textit{AoI}) on the current graphics device before the \textit{AoI} gets processed into an Formal Class SpatialPolygon. The extent of the \textit{AoI} gets extracted using the function \texttt{gEnvelope()}, creating a rectangular shapefile around the full extent of the \textit{AoI}. This shapefile is then being reprojected onto the user specified coordinate system. Since the user defined CRS is metric, the \texttt{extent()}-function allows us to extract the dimensions of the \textit{AoI} and calculate the necessary raster grid for the study (dividing the \textit{aoi's} extent by the desired cell size, e.g. 50~km). Since the grid size has to be a multiple of the desired cell size, it may so happen that the original extent is snapped to the nearest (bigger) extent that meets this condition (e.g. the original extent between xmin and xmax from \texttt{gEnvelope()} is 887~km, then the final grid will have the size of 800km in order to allow 16 cells of 50~km on the x-axis)\newline
+
+\begin{verbatim}
+#---------------------------------
+#SET CUSTOM PARAMETERS
+
+setwd("/Users/foo/bar")     # set the working directory
+species <- c("Dama dama")   # species name must be in Latin
+parameters <- c("alt", "tmin", "tmax", "tmean", "prec", "bio") 
+                            # all possible WordClim.org parameters
+target_resolution <- 50000  # example with target grid cell size of 50km
+crs <- "+init=epsg:3035"    # example with Europe's equal area projection
+
+#----------------------------------
+\end{verbatim}
+
+Spatial data for almost every non-domesticated mammalian, amphibian, reptilian and marine fish species is accessible at \url{www.iucnredlist.org}. A function was written that redirects the user to the download page of the requested species at the website of the IUCN. Unfortunately a user login is required, otherwise it would have been possible to directly download the spatial data and load it into R. It is possible to manually download all species distribution shapefiles in bulk (over 2 GB of data in shapefiles) from the website of the IUCN. Raster data for climate records is available at \url{www.worldclim.org} without a user login, allowing us to directly download and load the data to our Rworkspace. The same applies for landvocer data from  \url{www.fao.org}. If either one of the data sets is already downloaded and stored inside the specified folders, the download-functions will notify the user that re-downloading them wont be necessary.\newline
+
+\begin{verbatim}
+#----------------------------------
+# LOAD WORKFLOW FUNCTIONS
+
+# Prompt to download website at IUCN for species distribution shapefiles
+IUCNdata <- function(name){
+  browseURL(paste("http://maps.iucnredlist.org/map.html?id=", ID, sep=""))
+  paste("CAUTION: Make sure to move the species folder into your working directory")
+}
+
+# Download WorldClim 
+getWorldClim <- function(par, res){
+  parlist <-list()
+  for (i in 1:length(par)) {
+    getData('worldclim', path=path.temp_data, download = T, var=par[i], res=res)
+  }
+}
+
+# Download global land cover data
+download.file("http://www.fao.org/geonetwork/srv/en/resources.get?id=47948
+              &fname=GlcShare_v10_Dominant.zip&access=private", 
+              paste(path.temp_data, "GLCdom.zip", sep="/"))
+unzip(paste(path.temp_data, "GLCdom.zip", sep="/"), 
+      exdir = paste(path.temp_data, "GLCdom", sep="/"))
+file.remove(paste(path.temp_data, "GLCdom.zip", sep="/"))
+
+#----------------------------------
+\end{verbatim}
+
+Once all the data is available to R, the species is plotted onto a 2D plane of the entire world (WGS84 Lat/Lon; EPSG:4326) together with every country's borders shapefile downloaded from \url{www.thematicmapping.org}. The user is then prompted to specify the area of interest (\textit{AoI}) on the current graphics device before the \textit{AoI} gets processed into an Formal Class SpatialPolygon. The extent of the \textit{AoI} gets extracted using the function \texttt{gEnvelope()}, creating a rectangular shapefile around the full extent of the \textit{AoI}. This shapefile is then being reprojected onto the user specified coordinate system. Since the user defined CRS is metric, the \texttt{extent()}-function allows us to extract the dimensions of the \textit{AoI} and calculate the necessary raster grid for the study (dividing the \textit{aoi's} extent by the desired cell size, e.g. 50~km). Since the grid size has to be a multiple of the desired cell size, it may so happen that the original extent is snapped to the nearest (bigger) extent that meets this condition (e.g. the original extent between xmin and xmax from \texttt{gEnvelope()} is 887~km, then the final grid will have the size of 900km in order to allow 18 cells of 50~km on the x-axis). To do this, the \texttt{mround} function was created after a template provided by Alberto Santini: \url{https://gist.github.com/albertosantini/3638434}.\newline
+
+\begin{verbatim}
+#----------------------------------
+# PREPARE TEMPLATE RASTER
+
+# Visualisation of species distribution extent
+species.shp <-  readOGR(dsn=paste(paste(getwd(), "species_", sep="/"), 
+                ID, sep=""),layer=paste("species_", ID, sep=""))
+worldborders <- readOGR(dsn=paste(path.temp_data, "WorldBorders", sep="/"), 
+                layer="TM_WORLD_BORDERS-0.3")
+
+plot(species.shp, col="brown")  # from iucnredlist.org still in EPSG:4326
+plot(worldborders, add=T)       # add country borders for better orientation
+
+aoi <- getpoly(quiet = F) # draw the extent of your area of interest
+aoi_sp <- Polygon(aoi)
+aoi_sps <- Polygons(list(aoi_sp),ID=ID)
+aoi_spls <- SpatialPolygons(list(aoi_sps), 
+            proj4string=CRS(species.shp@proj4string@projargs))
+
+# get the extent of clipped polygon and project extent to target CRS
+aoi_ext <- gEnvelope(aoi_spls)
+aoi_ext_utm <- spTransform(aoi_ext, crs(crs))
+ext <- extent(aoi_ext_utm)
+
+# force grid to be a multiple of the cell size 
+  in order to get integer values for dimensions
+dimx <- (mround(length(ext@xmin:ext@xmax), target_resolution))/target_resolution
+dimy <- (mround(length(ext@ymin:ext@ymax), target_resolution))/target_resolution
+
+# build a template raster for the spatial_sync_raster function
+aoi_rr_utm <- raster(ext, ncols=dimx,nrows=dimy,crs=crs)
+#----------------------------------
+\end{verbatim}
+
 The species distribution shapefile needs to be cropped to the extent of the \textit{AoI} before processing it into a raster. The unprojected \texttt{gEnvelope()} output is used for this task and the resulting cropped species-shapefile projected to our target CRS. Rasterizing this cropped and reprojected spacial shapefile needs to be done in such a way that the amount of cell coverage by the polygon is taken into account. Cells that lie completely within the extent of the polygon will be assigned with the value 1 for full coverage by the polygon. Along the edges of the polygon, the cells that result from the rasterization have their values (from 0 to 1) for species presence assigned by the amount of area the polygon occupies in that specific cell. This is important to adequately weight the influence of these cells in a further analysis of the species distribution (e.g. in a linear regression).\newline
+
+\begin{verbatim}
+#----------------------------------
+# PROCESSING SPECIES DISTRIBUTION DATA
+
+# crop shapefile to AoI extent
+species_aoi_shp <- crop(species.shp, aoi_ext)
+
+# transfrom shapefile to target crs
+species_aoi_shp_utm <- spTransform(species_aoi_shp, crs(crs))
+
+# rasterise shapefile, extracting proportion of 
+  each raster cell covered by species shapefile
+species_aoi_raster <- rasterize(species_aoi_shp_utm, aoi_rr_utm, getCover=T)
+species_aoi_raster@data@values <- species_aoi_raster@data@values/100
+species_aoi_raster@data@names <- species
+#----------------------------------
+\end{verbatim}
+
 Processing the environmental raster data starts with indexing the location of every rasterfile inside the folders they were extracted to, using the function \texttt{list.raster.files()}. This list of file-paths is used by a \texttt{for}-loop to load in every singe raster for processing (cropping, projection and resampling them) but comes with one flaw. The order in which the rasters from \url{www.worldclim.org} are detected by the \texttt{list.raster.files()}-function follows the alphabetic order of the files. This would be fine except that the \url{www.worldclim.org} monthly data is numbered for each month (e.g. tmin1, tmin2, tmin3 ... tmin10, tmin11, tmin12), so the rasters for October, November and December all appear before the raster for February in the list of file-paths returned by the \texttt{list.raster.files}-function. An empty list with only the file names needs to be created, using the \texttt{list.files}-function. This way while each raster is processed by the loop, the naming of the output is done in the same (somewhat illogical) order that the rasters get loaded into the loop.\newline
-Processing itself includes the cropping, projecting and resampling of every rasterfile in \texttt{rasterlist} using the same template raster created for rasterizing the species shapefile. The \texttt{resampling}-function offers two ways of estimating the new cell values, nearest neighbour and bilinear resampling. We found that bilinear resampling yields better results but takes considerably longer than the nearest neighbour option. 
+Processing itself includes the cropping, projecting and resampling of every rasterfile in \texttt{rasterlist} using the same template raster created for rasterizing the species shapefile. The \texttt{resampling}-function offers two ways of estimating the new cell values, nearest neighbour and bilinear resampling. We found that bilinear resampling yields better results but takes considerably longer than the nearest neighbour option.
+
+\begin{verbatim}
+# find WorldClim rasters in their download folder and save 
+  their target path and names in two lists at corresponding 
+  list positions.
+rasterlist <- list.raster.files(paste(paste(path.temp_data,"wc", sep="/"),
+              res, sep=""), pattern= "bil$")
+names <- list.files(paste(paste(path.temp_data, "wc",sep="/"), res, sep=""),
+              pattern= "bil$") #stores 
+
+# load, crop, reproject and resample WorldClim raster to fit template raster
+wc_processed <- list()
+for (i in 1:length(rasterlist$raster_files)){
+  r <- raster(rasterlist$raster_files[[i]], sep="") 
+  rc <- crop(r, aoi_ext)                            
+  rc_utm <- projectRaster(rc, crs=crs)
+  wc_processed[[i]] <- resample(rc_utm, aoi_rr_utm, method="bilinear")
+  name <- paste("processed_", names[[i]], sep="")
+}
+\end{verbatim}
+
+
+Global landcover data 
 The processed rasters are stored in the Rworkspace just like the species raster. Together, all the values for every cell get stacked and converted into a data frame with one row representing each cell, one column for every environmental parameter and species as well as columns specifying the geographic location of every cell.
 
 \section{Short comings}%------------------------------------------------------------------------------------------------------
@@ -83,6 +210,8 @@ Additional information provided by the user could help the function \texttt{IUCN
 In case the species ID list gets modified by the IUCN, the github-hosted *.txt-file that relates the latin name to the ID necessary for redirecting the user to the download page would also needed to be manually updated. \newline
 Areas of interest with extraordinary large extends along the x-axis will make it dificult to define an adequat coordinate reference system, thus making our script unable to run. The user must be aware that equal area projections are limited in their ability to represent truly equal areas when moving away from their center of projection. \newline
 We did not provide nor did we research what environmental parameters are relevant or available to analyse marine life. But considering that the IUCN provides shapefiles for marine fish species, species distrbution modeling data could be prepared for analysis by our Rscript as well. \newline
+
+\section{Appendix}%-----------------------------------------------------------------------------------------------------------
 
 
 \end{document}
