@@ -1,7 +1,6 @@
+#---------1. SCRIPT SUMMARY----------
 
-#What does this script do?
-
-# - it aims to create a final data sheet, in which various environmetnal parameters and the distribution of one (or more) species in an area of interest are assigned to spatial equal-area-cells of a given size. The data are the foundation for macro-ecological research, species distribution modelling and so forth.
+#This script creates a data sheet, in which various user-specified environmental parameters and the distribution of one IUCN-listed species in an area of interest are assigned to spatial equal-area-cells of a given size. The data are the foundation for macro-ecological research, species distribution modelling and so forth.
 
 # 1) First, the following parameters are specified by the user:
 #     - a working directory in which the project directories are saved
@@ -25,11 +24,10 @@
 # this has columns with UTM coordinates of our cells, the values of their climate parameters
 # still missing but easy to complete: glc-data
 
-#######################
-######PREPARATION######
-#######################
 
-#LOAD NECESSARY PACKAGES
+
+#---------2. LOAD NECESSARY PACKAGES----------
+
 library(rgdal)
 library(sp)
 library(splancs)
@@ -38,18 +36,20 @@ library(spatial.tools)
 library(raster)
 library(foreign)
 library(RCurl)
-#---------------------------------
-#SET CUSTOM PARAMETERS
 
-setwd("/Users/Simon/Studium/MSC/Best Practice in R/DistributionProject/test_project")
-species <- c("Crocodylus siamensis") 
-parameters <- c("alt", "tmin", "tmax")
-target_resolution <- 50000
-crs <- "+init=epsg:32648" #
-deletefiles <- F #(delete proccessed and downloaded files after running workflow, T or F)
-#----------------------------------
-#LOAD WORKFLOW FUNCTIONS
-#Download WorldClim
+
+#---------3. SET CUSTOM PARAMETERS------------
+
+setwd("/Users/Simon/Studium/MSC/Best Practice in R/DistributionProject/test_project") # set the working directory
+species <- "Crocodylus siamensis" # species name must be latin
+parameters <- c("alt", "tmin", "tmax") # all possible WorldClim parameters
+target_resolution <- 50000 # target grid cell size in m
+crs <- "+init=epsg:32648" # adequate equal area projection of target area as PROJ.4 - string
+
+
+#---------4. LOAD WORKFLOW FUNCTIONS----------
+
+# 4. a) Function for the download of WorldClim parameters
 getWorldClim <- function(par, res){
   parlist <-list()
   for (i in 1:length(par)) {
@@ -57,13 +57,13 @@ getWorldClim <- function(par, res){
   }
 }
 
-#Prompt species distribution shp download website at IUCN
+# 4. b) Function that creates link to IUCN profile of intended species, where the species distribution file can be downloaded
 IUCNdata <- function(name){
   browseURL(paste("http://maps.iucnredlist.org/map.html?id=", ID, sep=""))
-  paste("CAUTION: Make sure to move the species folder into your working directory")
+  message("Make sure to move the species folder into your working directory")
 }
 
-#round numbers to specific multiple (by Alberto Santini: https://gist.github.com/albertosantini/3638434)
+# 4. c) Function to round numbers to nearest multiple of a specific number (needed in creation of template raster) (by Alberto Santini: https://gist.github.com/albertosantini/3638434)
 mround <- function(number, multiple) {
   # if number and multiple have different sign, returning an error.
   if (sign(number) != sign(multiple)) {
@@ -79,15 +79,10 @@ mround <- function(number, multiple) {
   }
   round(n) * multiple
 }
-#----------------------------------
-###########################
-####DOWNLOADING RAW DATA###
-###########################
 
-# common parameters included are derived from the WorldClim database, the global landcover data provided by the UNFAO GeoNetwork and a species distribution dataset from the IUCN redlist.
+#---------5. DOWNLOADING RAW DATA-------------
 
-# #----------------------------------
-# #SET TEMPORARY FOLDER
+# 5. a) Set temporary folder to save WorldClim, land cover and worldborders shapefile. Deleted after each workflow completion.
 if (file.exists(paste(getwd(), "temp_data", sep="/"))){
   path.temp_data <- paste(getwd(), "temp_data", sep="/")
   unlink(paste(getwd(), "temp_data", sep="/"), recursive=T)
@@ -98,14 +93,14 @@ if (file.exists(paste(getwd(), "temp_data", sep="/"))){
 }
 
 
-#----------------------------------
-#IUCN-DATA LINK
-#get species ID from online resource
+# 5. b) Prompt link to species download page at IUCN.
+
+# Extract species ID from file stored in github repository.
 x <- getURL("https://raw.githubusercontent.com/achumani/Verbreitungsdaten-in-R/master/IUCN_Species_ID.csv")
 SpeciesID <- read.csv(text = x, header=T)
 ID <- as.character(SpeciesID$id_no[which(SpeciesID$binomial == species)])
 
-#promt download link
+#Promt download link
 if (file.exists(paste(getwd(), paste("species_", ID, sep=""), sep="/"))){
   message("Download not necessary. The file already exists in your working directory.")
 }else{
@@ -113,8 +108,9 @@ if (file.exists(paste(getwd(), paste("species_", ID, sep=""), sep="/"))){
   message("Please download the species distribution file from the IUCN-website that just popped up and move the downloaded file as is into your working directory.")
 }
 
-#----------------------------------
-#DOWNLOAD WorldClim DATA INTO temporary folder
+
+#5. c) Download WorldClim data into temporary folder
+
 par <- parameters
 if(target_resolution < 20000){
   res <- 5
@@ -123,60 +119,77 @@ if(target_resolution < 20000){
 }
 getWorldClim(par, res)
 
-#----------------------------------
-# DOWNLOAD WORLD BORDERS
-download.file("http://thematicmapping.org/downloads/TM_WORLD_BORDERS-0.3.zip", paste(path.temp_data, "WorldBorders.zip", sep="/"))
-unzip(paste(path.temp_data, "WorldBorders.zip", sep="/"), exdir = paste(path.temp_data, "WorldBorders", sep="/"), overwrite=T)
-file.remove(paste(path.temp_data, "WorldBorders.zip", sep="/"))
 
-#DOWNLOAD GLC DATA
+# 5. d) Download global land cover data
+
 download.file("http://www.fao.org/geonetwork/srv/en/resources.get?id=47948&fname=GlcShare_v10_Dominant.zip&access=private", paste(path.temp_data, "GLCdom.zip", sep="/"))
 unzip(paste(path.temp_data, "GLCdom.zip", sep="/"), exdir = paste(path.temp_data, "GLCdom", sep="/"))
 file.remove(paste(path.temp_data, "GLCdom.zip", sep="/"))
 
 
-#######################
-#####RASTERIZATION#####
-#######################
+# 5. c) Download global borders
 
-#Visualisation of species distribution extent
+download.file("http://thematicmapping.org/downloads/TM_WORLD_BORDERS-0.3.zip", paste(path.temp_data, "WorldBorders.zip", sep="/"))
+unzip(paste(path.temp_data, "WorldBorders.zip", sep="/"), exdir = paste(path.temp_data, "WorldBorders", sep="/"), overwrite=T)
+file.remove(paste(path.temp_data, "WorldBorders.zip", sep="/"))
+
+
+#---------6. RASTERISATION-----------------
+
+# 6. a) Select Area of Interest (needs to be within equal area projection specified above)
+
+#Read species distribution and worldborders shapefiles and plot them into 0-device
 worldborders <- readOGR(dsn=paste(path.temp_data, "WorldBorders", sep="/"), layer="TM_WORLD_BORDERS-0.3")
 species.shp <- readOGR(dsn=paste(paste(getwd(), "species_", sep="/"), ID, sep=""),layer=paste("species_", ID, sep=""))
 
-plot(species.shp, col="brown") # from iucnredlist.org transformed to suitable equal area projection
+
+plot(species.shp, col="brown")
 plot(worldborders, add=T)
-aoi <- getpoly(quiet = F) # draw the extent of your area of interest
+
+# clip a polygon from distribution map, convert to spatial polygons object
+aoi <- getpoly(quiet = F)
 aoi_sp <- Polygon(aoi)
 aoi_sps <- Polygons(list(aoi_sp),ID=ID)
 aoi_spls <- SpatialPolygons(list(aoi_sps), proj4string=CRS(species.shp@proj4string@projargs))
-#aoi_spls_utm <-spTransform(aoi_spls, CRS(crs))
 
-# get the extent of the aoi_spls
+
+# 6. b) Build template raster covering the Area of Interest
+
+# get the extent of the clipped polygon and convert to target projection
 aoi_ext <- gEnvelope(aoi_spls)
 aoi_ext_utm <- spTransform(aoi_ext, crs(crs))
 ext <- extent(aoi_ext_utm)
 
-#force grid to be a multiple of our resoultion in order to get integer values for our dimensions
+# force target grid to be a multiple of desired grid size in order to get integer values for dimension
 dimx <- (mround(length(ext@xmin:ext@xmax), target_resolution))/target_resolution
 dimy <- (mround(length(ext@ymin:ext@ymax), target_resolution))/target_resolution
 
 # build a template raster for the spatial_sync_raster function
 aoi_rr_utm <- raster(ext, ncols=dimx,nrows=dimy,crs=crs)
 
-# use aoi_rr to clip species shapefile and rasterize it
-# to cover full extent of species, the polygons borders need to be rasterized seperatly. Otherwise only what is 100% inside the polygon will be rasterized. But it is not 100% perfect. possible improvements!!
+
+# 6. c) fitting species distribution data into template raster
+
+# crop to AOI extent
 species_aoi_shp <- crop(species.shp, aoi_ext)
+
+# transfrom to target crs
 species_aoi_shp_utm <- spTransform(species_aoi_shp, crs(crs))
+
+# rasterise species shapefile, extracting proportion of each raster cell covered by species shapefile
 species_aoi_raster <- rasterize(species_aoi_shp_utm, aoi_rr_utm, getCover=T)
 species_aoi_raster@data@values <- species_aoi_raster@data@values/100
 species_aoi_raster@data@names <- species
-#fitting downloaded worldclim data into raster#
 
-rasterlist <- list.raster.files(paste(paste(path.temp_data,"wc", sep="/"),res, sep=""), pattern= "bil$") # this function will check the folder and subfolders at the paths location for ALL rasters
-names <- list.files(paste(paste(path.temp_data, "wc",sep="/"), res, sep=""), pattern= "bil$") #stores rasternames in same order as list.raster.files()
 
+# 6. d) fitting WorldClim data into template raster
+
+# find WorldClim rasters in their download folder and save their target path and names in two lists at corresponding list positions.
+rasterlist <- list.raster.files(paste(paste(path.temp_data,"wc", sep="/"),res, sep=""), pattern= "bil$")
+names <- list.files(paste(paste(path.temp_data, "wc",sep="/"), res, sep=""), pattern= "bil$") #stores 
+
+# load, crop, reproject and resample WorldClim raster to fit template raster
 wc_processed <- list()
-# empty list to store processed rasters in RAM
 for (i in 1:length(rasterlist$raster_files)){
   r <- raster(rasterlist$raster_files[[i]], sep="") #loading longlat rasters
   rc <- crop(r, aoi_ext)
@@ -185,9 +198,10 @@ for (i in 1:length(rasterlist$raster_files)){
   #use aoi_rr_utm as input for spatial sync
   name <- paste("processed_", names[[i]], sep="")
 }
-
-
-plot(wc_processed[[1]])
+wc_processed
+# plot WorldClim parameters from January to control success.
+par(mfrow=((length(parameters)/2),2)
+plot(wc_processed[])
 plot(species_aoi_raster)
 
 ###Landcover data
