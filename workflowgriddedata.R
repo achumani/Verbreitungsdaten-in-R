@@ -198,30 +198,34 @@ for (i in 1:length(rasterlist$raster_files)){
   #use aoi_rr_utm as input for spatial sync
   name <- paste("processed_", names[[i]], sep="")
 }
-wc_processed
-# plot WorldClim parameters from January to control success.
-par(mfrow=((length(parameters)/2),2)
-plot(wc_processed[])
-plot(species_aoi_raster)
 
-###Landcover data
-#load Tiff assign CRS, transform it to formal raster class and crop it
+wc_processed <- stack(wc_processed)
+# plot one WorldClim parameter for control
+
+# png("species and worldcli")
+# plot(datastack[[1]])
+# plot(species_aoi_raster, add=T)
+
+
+# 6. e) fitting land cover data into template raster
+
+# load Tiff assign CRS, transform it to formal raster class and crop it
 glc <- readGDAL(paste(path.temp_data, "GLCdom/glc_shv10_DOM.tif", sep="/"))
 crs(glc) <- crs(aoi_ext)
 glc <- raster(glc)
 glc_c<- crop(glc, aoi_ext)
 glc_c_utm <- projectRaster(glc_c, crs=crs, method="ngb")
 
-#use utm template raster to create spatial polygons object as mask for value extraction by cell
+# use utm template raster to create spatial polygons object as mask for value extraction by cell
 rastercells <- rasterToPolygons(aoi_rr_utm)
 lcraster <- extract(glc_c_utm, rastercells)
 
-#set NA to 0
+# set NA to 0 (to equalise length of land cover pixels per target cell)
 for (i in 1:length(lcraster)){
   lcraster[[i]][is.na(lcraster[[i]])] <- 0
 }
 
-#Calculation of land cover share of each class in each cell
+# calculation of proportion of each class in each target cell
 for (i in 1:length(lcraster)){
   lcshares <- numeric()
   for (j in 1:11){
@@ -229,17 +233,37 @@ for (i in 1:length(lcraster)){
   }
   lcsharelist[[i]] <- lcshares
 }
-landcovershares <- as.data.frame(do.call(rbind, lcsharelist))
-names(landcovershares) <- c("ARTIFICIAL", "CROP", "GRASS", "TREE", "SHRUB", "HERBS", "MANGROVES", "SPARSE VEGETATION", "BARE", "SNOW", "WATER")
 
-#SET UP FINAL DATASHEET
-#make data frame with climate attributes, coordinates and species presence/absence
-datastack <- stack(wc_processed)
-datastack <- addLayer(species_aoi_raster,datastack)
-data_sheet <- as.data.frame(rasterToPoints(datastack))
+# creation of rasterstack from land cover shares
+
+landcovernames <- c("ARTIFICIAL", "CROP", "GRASS", "TREE", "SHRUB", "HERBS", "MANGROVES", "SPARSE VEGETATION", "BARE", "SNOW", "WATER")
+lclayers <- stack()
+for (i in 1: length(landcovernames)){
+  layer <-setValues(aoi_rr_utm, do.call(rbind, lcsharelist)[,i])
+  names(layer) <- landcovernames[i]
+  lclayers <- addLayer(lclayers, layer)
+}
+
+
+#---------7. SET UP FINAL DATASHEET--------
+
+# combine species distribution raster, WorldCLim stack and land cover stack into one stack object
+alldata<- addLayer(species_aoi_raster, lclayers, wc_processed)
+
+#get values and save as dataframe
+alldata_df <- as.data.frame(rasterToPoints(alldata))
+
+#assign remaining column names, species-ID-column, add unique identifier column (CELLCODE)
 colnames(data_sheet)[1:2] <- c("EOFORIGIN", "NOFORIGIN")
-data_sheet <- cbind(ID= ID, CELLCODE = paste0(target_resolution/1000,"KM","E", round(data_sheet$EOFORIGIN/1000), "N", round(data_sheet$NOFORIGIN/1000)),data_sheet, landcovershares)
+final <- cbind(ID= ID, CELLCODE = paste0(target_resolution/1000,"KM","E", round(data_sheet$EOFORIGIN/1000), "N", round(data_sheet$NOFORIGIN/1000)), alldata_df)
 
-write.csv(data_sheet, paste0("species_", ID,"_", target_resolution/1000, "KM_data.csv"))
+#export sheet as csv with conditional name into working directory
+write.csv(final, paste0("species_", ID,"_", target_resolution/1000, "KM_data.csv"))
 
+#create geotiff of all rasterized data
+writeRaster(alldata, paste0("species_", ID,"_", target_resolution/1000, "KM_data", format="GTiff", overwrite=T))
+
+#Create metadata file
+
+#delete temp folders
 unlink(paste(getwd(), "temp_data", sep="/"), recursive=T)
