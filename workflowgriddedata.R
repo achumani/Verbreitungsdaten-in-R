@@ -129,7 +129,10 @@ download.file("http://thematicmapping.org/downloads/TM_WORLD_BORDERS-0.3.zip", p
 unzip(paste(path.temp_data, "WorldBorders.zip", sep="/"), exdir = paste(path.temp_data, "WorldBorders", sep="/"), overwrite=T)
 file.remove(paste(path.temp_data, "WorldBorders.zip", sep="/"))
 
-
+#DOWNLOAD GLC DATA
+download.file("http://www.fao.org/geonetwork/srv/en/resources.get?id=47948&fname=GlcShare_v10_Dominant.zip&access=private", paste(path.temp_data, "GLCdom.zip", sep="/"))
+unzip(paste(path.temp_data, "GLCdom.zip", sep="/"), exdir = paste(path.temp_data, "GLCdom", sep="/"))
+file.remove(paste(path.temp_data, "GLCdom.zip", sep="/"))
 
 
 #######################
@@ -183,14 +186,46 @@ for (i in 1:length(rasterlist$raster_files)){
   name <- paste("processed_", names[[i]], sep="")
 }
 
+
 plot(wc_processed[[1]])
 plot(species_aoi_raster)
+
+###Landcover data
+#load Tiff assign CRS, transform it to formal raster class and crop it
+glc <- readGDAL(paste(path.temp_data, "GLCdom/glc_shv10_DOM.tif", sep="/"))
+crs(glc) <- crs(aoi_ext)
+glc <- raster(glc)
+glc_c<- crop(glc, aoi_ext)
+glc_c_utm <- projectRaster(glc_c, crs=crs, method="ngb")
+
+#use utm template raster to create spatial polygons object as mask for value extraction by cell
+rastercells <- rasterToPolygons(aoi_rr_utm)
+lcraster <- extract(glc_c_utm, rastercells)
+
+#set NA to 0
+for (i in 1:length(lcraster)){
+  lcraster[[i]][is.na(lcraster[[i]])] <- 0
+}
+
+#Calculation of land cover share of each class in each cell
+for (i in 1:length(lcraster)){
+  lcshares <- numeric()
+  for (j in 1:11){
+    lcshares[j] <- cbind(length(lcraster[[i]][lcraster[[i]]==j])/length(lcraster[[i]]))
+  }
+  lcsharelist[[i]] <- lcshares
+}
+landcovershares <- as.data.frame(do.call(rbind, lcsharelist))
+names(landcovershares) <- c("ARTIFICIAL", "CROP", "GRASS", "TREE", "SHRUB", "HERBS", "MANGROVES", "SPARSE VEGETATION", "BARE", "SNOW", "WATER")
+
+#SET UP FINAL DATASHEET
 #make data frame with climate attributes, coordinates and species presence/absence
 datastack <- stack(wc_processed)
-datastack <- addLayer(datastack, species_aoi_raster)
+datastack <- addLayer(species_aoi_raster,datastack)
 data_sheet <- as.data.frame(rasterToPoints(datastack))
 colnames(data_sheet)[1:2] <- c("EOFORIGIN", "NOFORIGIN")
-data_sheet <- cbind(ID= ID, CELLCODE = paste0(target_resolution/1000,"KM","E", round(data_sheet$EOFORIGIN/1000), "N", round(data_sheet$NOFORIGIN/1000)),data_sheet)
+data_sheet <- cbind(ID= ID, CELLCODE = paste0(target_resolution/1000,"KM","E", round(data_sheet$EOFORIGIN/1000), "N", round(data_sheet$NOFORIGIN/1000)),data_sheet, landcovershares)
+
 write.csv(data_sheet, paste0("species_", ID,"_", target_resolution/1000, "KM_data.csv"))
 
 unlink(paste(getwd(), "temp_data", sep="/"), recursive=T)
